@@ -22,3 +22,57 @@ Server: AmazonS3
 0.jpg
 1.jpg
 2.jpg-------------------------------------
+
+
+void p_deleteFileIfExists(char *name)
+{
+    char *filePath = (char *) calloc(1, strlen(name) + 1);
+    
+    strcat(filePath, "\\");
+    strcat(filePath, name);
+    
+    if (SD.exists(filePath)) {
+    
+        boolean success = SD.remove(filePath);
+        
+        if (!success) {
+            Serial.println(F("unable to delete file."));
+        }
+        else {
+            Serial.println(F("file deleted."));
+        }
+    }
+    else {
+        Serial.println(F("no need to remove file, it didn't exist."));
+    }
+}
+
+void p_syncFiles()
+{
+    // 1. read the file-list from disk
+    // 2. walk through the list of files
+    // 3. for each file in the list, make sure the file has been d/l'd
+    // 4. delete any files on the SD which weren't identified in the list
+    
+    File root = SD.open("/");
+    
+    while (true) {
+        
+        File entry = root.openNextFile();
+        
+        if (!entry) {
+            // no more files
+            break;
+        }
+
+        Serial.println(entry.name());
+        
+        if (entry.isDirectory()) {
+            //Serial.println(entry.size(), DEC);
+        }
+        
+        entry.close();
+    }
+    
+    root.close();
+}

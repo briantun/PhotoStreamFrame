@@ -6,9 +6,11 @@
 #include <string.h>
 #include "utility/debug.h"
 
-// SD ---------------------------------------------------------------------------------------------------------------------
+// Strings
 
-File root;
+static const int kFilePathLen = 32;
+
+// SD ---------------------------------------------------------------------------------------------------------------------
 
 // WiFi -------------------------------------------------------------------------------------------------------------------
 
@@ -31,6 +33,7 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 #define WEBPAGE      "/filelist.txt"
 
 uint32_t ip;
+Adafruit_CC3000_Client www;
 
 // ------------------------------------------------------------------------------------------------------------------------
 
@@ -46,15 +49,15 @@ void p_initSD()
     
     if (!SD.begin(4)) {
         Serial.println("SD initialization failed!");
-        return;
     }
-    root = SD.open("/");
-    Serial.println("SD initialization done.");
+    else {
+        Serial.println("SD initialization done.");
+    }
 }
 
 void p_deleteFileIfExists(char *name)
 {
-    
+    boolean success = SD.remove(name);
 }
 
 #pragma mark - Support (Comm)
@@ -75,15 +78,54 @@ void p_initWiFi()
     
     Serial.println(F("Connected!"));
     Serial.println(F("Request DHCP"));
+    
+    // TODO: add DHCP timeout
     while (!cc3000.checkDHCP())
     {
-        delay(100); // ToDo: Insert a DHCP timeout!
+        delay(500);
+        Serial.println(F("waiting on DHCP..."));
     }
 }
 
-void p_downloadFileNamed(char *name, boolean writeToConsole)
+void p_connect()
 {
-    Adafruit_CC3000_Client www = cc3000.connectTCP(ip, 80);
+    ip = 0;
+    
+    // Try looking up the website's IP address
+    Serial.print(WEBSITE);
+    Serial.print(F(" -> "));
+    while (ip == 0) {
+        if (!cc3000.getHostByName(WEBSITE, &ip)) {
+            Serial.println(F("Couldn't resolve!"));
+        }
+        delay(500);
+    }
+    
+    cc3000.printIPdotsRev(ip);
+    Serial.print("\n");
+    
+    www = cc3000.connectTCP(ip, 80);
+    Serial.println(F("connected."));
+}
+
+void p_disconnect()
+{
+    Serial.println(F("\n\ndisconnecting..."));
+    
+    www.close();
+    www = NULL;
+    
+    cc3000.disconnect();
+    
+    Serial.println(F("disconnected."));
+}
+
+#pragma mark - Support (file download)
+
+boolean p_downloadFileNamed(char *name, boolean writeToConsole)
+{
+    boolean fileReady = false;
+    File outFile;
     
     // issue request
     if (www.connected()) {
@@ -98,12 +140,8 @@ void p_downloadFileNamed(char *name, boolean writeToConsole)
     }
     else {
         Serial.println(F("Connection failed"));
-        return;
+        return false;
     }
-    
-    // prepare file for writing
-    p_deleteFileIfExists(name);
-    File myFile = SD.open(name, FILE_WRITE);
     
     // read data until either the connection is closed, or the idle timeout is reached
     unsigned long lastRead = millis();
@@ -122,14 +160,26 @@ void p_downloadFileNamed(char *name, boolean writeToConsole)
             
             char c = www.read();
             
-            // if we're in the header, and we see 2 newlines, that means we've reached the body
-            if (inHeader && lastCharWasNewlineInHeader && c == '\n') {
-                inHeader = false;
-            }
-            
+            // read contents
             if (!inHeader) {
                 
-                myFile.write(c);
+                // prep output file
+                if (!fileReady) {
+                    
+                    Serial.println(F("prepping output file..."));
+                    
+                    p_deleteFileIfExists(name);
+                    outFile = SD.open(name, FILE_WRITE);
+                    
+                    if (!outFile) {
+                        Serial.println(F("unable to provisiong output file."));
+                        return false;
+                    }
+                    
+                    fileReady = true;
+                }
+                
+                outFile.write(c);
                 
                 if (writeToConsole) {
                     Serial.print(c);
@@ -138,9 +188,15 @@ void p_downloadFileNamed(char *name, boolean writeToConsole)
             
             lastRead = millis();
             
-            // if we're in the header, remember when we see a newline
-            if (inHeader && c == '\n') {
-                lastCharWasNewlineInHeader = true;
+            // we've reached the end of the HTTP header
+            if (inHeader && lastCharWasNewlineInHeader && c == 13) {
+                inHeader = false;
+                www.read();
+            }
+            
+            // track when we see newlines in the header
+            if (inHeader) {
+                lastCharWasNewlineInHeader = (c == 10);
             }
         }
     }
@@ -149,31 +205,92 @@ void p_downloadFileNamed(char *name, boolean writeToConsole)
         Serial.println(F("\n-------------------------------------\n"));
     }
     
-    myFile.close();
-    www.close();
-}
-
-void p_connect()
-{
-    ip = 0;
-    
-    // Try looking up the website's IP address
-    Serial.print(WEBSITE);
-    Serial.print(F(" -> "));
-    while (ip == 0) {
-        if (!cc3000.getHostByName(WEBSITE, &ip)) {
-            Serial.println(F("Couldn't resolve!"));
-        }
-        delay(500);
+    if (fileReady) {
+        outFile.close();
     }
     
-    cc3000.printIPdotsRev(ip);
+    return true;
 }
 
-void p_disconnect()
+#pragma mark - Support (Sync)
+
+void p_processFileNamed(String fileName)
 {
-    Serial.println(F("\n\ndisconnecting..."));
-    cc3000.disconnect();
+    char fileNameAsChar[kFilePathLen];
+    fileName.toCharArray(fileNameAsChar, kFilePathLen);
+    
+    Serial.print(F("processing file: "));
+    Serial.print(fileName);
+    Serial.print("...\n");
+    
+    boolean shouldDownload = true;
+    
+    if (SD.exists(fileNameAsChar)) {
+        
+        Serial.println(F("file exists."));
+        
+        // check size of file
+        File file = SD.open(fileNameAsChar, FILE_READ);
+        boolean isEmpty = (file.size() == 0);
+        file.close();
+        
+        if (isEmpty) {
+            Serial.println(F("file existed, but was empty... deleting first."));
+            SD.remove(fileNameAsChar);
+        }
+        else {
+            // file exists and has contents
+            shouldDownload = false;
+        }
+    }
+    
+    // download if needed
+    if (shouldDownload) {
+        Serial.println(F("getting file..."));
+        p_downloadFileNamed(fileNameAsChar, false);
+    }
+}
+
+void p_syncFiles()
+{
+    Serial.println(F("starting sync..."));
+    
+    File listFile = SD.open("filelist.txt");
+    
+    // early exit if we can't open the file list
+    if (!listFile) {
+        Serial.println(F("can't open filelist.txt."));
+        return;
+    }
+    
+    char c;
+    String line = "";
+    
+    while (listFile.available()) {
+        
+        c = listFile.read();
+        
+        if (c != '\n') {
+            line.concat(c);
+        }
+        else {
+            
+            // process line
+            p_processFileNamed(line);
+            
+            // clear line
+            line = "";
+        }
+    }
+    
+    // process the last item
+    if (line.length() > 0) {
+        p_processFileNamed(line);
+    }
+    
+    listFile.close();
+    
+    Serial.println(F("sync done."));
 }
 
 #pragma mark - Setup and main loop
@@ -185,13 +302,16 @@ void setup(void)
     p_initSD();
     p_initWiFi();
     p_connect();
+    
+    p_syncFiles();
     p_downloadFileNamed("filelist.txt", true);
+    
     p_disconnect();
 }
 
 void loop(void)
 {
-    delay(1000);
+    delay(4000);
     Serial.println("looping...");
 }
 
