@@ -1,0 +1,24 @@
+uint32_t ip;
+http://fbits-photostream.s3.amazonaws.com/filelist.txt
+
+
+
+Connecting to Brian's Wi-Fi Network...Waiting to connect...Connected!
+Request DHCP
+fbits-photostream.s3.amazonaws.com -> 176.32.101.129
+Connect to 176.32.101.129:80
+-------------------------------------
+HTTP/1.1 200 OK
+x-amz-id-2: pfV4/kPxEO6MEJg6gEB3NsjRUN4WFr2RzrvPh5P5uSJhBUAPkT/tLwL9uu+GJuHH
+x-amz-request-id: A0CB9AAF6D8E2ADE
+Date: Sat, 28 Dec 2013 20:41:42 GMT
+Last-Modified: Sat, 28 Dec 2013 20:36:49 GMT
+ETag: "bb719640af77c61dad89c7ed52194a25"
+Accept-Ranges: bytes
+Content-Type: text/plain
+Content-Length: 17
+Server: AmazonS3
+
+0.jpg
+1.jpg
+2.jpg-------------------------------------

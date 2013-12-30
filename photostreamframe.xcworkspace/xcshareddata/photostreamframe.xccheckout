@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>188EA21E-7443-4D82-BBB1-84B4E34C12D2</string>
+	<key>IDESourceControlProjectName</key>
+	<string>photostreamframe</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>23BF6858-277B-422F-9D5B-65A60E2697BF</key>
+		<string>https://github.com/briantun/PhotoStreamFrame.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>photostreamframe.xcworkspace</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>23BF6858-277B-422F-9D5B-65A60E2697BF</key>
+		<string>..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/briantun/PhotoStreamFrame.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>110</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>23BF6858-277B-422F-9D5B-65A60E2697BF</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>23BF6858-277B-422F-9D5B-65A60E2697BF</string>
+			<key>IDESourceControlWCCName</key>
+			<string>PhotoStreamFrame</string>
+		</dict>
+	</array>
+</dict>
+</plist>
