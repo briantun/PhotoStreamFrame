@@ -5,10 +5,19 @@
 #include <SD.h>
 #include <string.h>
 #include "utility/debug.h"
+#include <SoftwareSerial.h>
 
 // Strings
 
 static const int kFilePathLen = 32;
+static const int kStrLen = 32;
+
+// Image serving ----------------------------------------------------------------------------------------------------------
+
+SoftwareSerial screenSerial(50, 51); // RX, TX
+
+int _nextImageNumber = 0;
+int _imageCount = 0;
 
 // SD ---------------------------------------------------------------------------------------------------------------------
 
@@ -36,6 +45,20 @@ uint32_t ip;
 Adafruit_CC3000_Client www;
 
 // ------------------------------------------------------------------------------------------------------------------------
+
+#pragma mark - Support (Utility)
+
+char *itoa(int val, int base) {
+	
+	static char buf[kStrLen] = {0};
+	int i = sizeof(buf) - 2;
+	
+	for(; val > 0 ; --i, val /= base) {
+        buf[i] = "0123456789abcdef"[val % base];
+    }
+    
+	return &buf[i+1];
+}
 
 #pragma mark - Support (SD)
 
@@ -251,18 +274,23 @@ void p_processFileNamed(String fileName)
     }
 }
 
-void p_syncFiles()
+boolean p_syncFiles()
 {
     Serial.println(F("starting sync..."));
     
+    // first try to refresh the file list
+    p_downloadFileNamed("filelist.txt", true);
+    
+    // try to open it
     File listFile = SD.open("filelist.txt");
     
     // early exit if we can't open the file list
     if (!listFile) {
         Serial.println(F("can't open filelist.txt."));
-        return;
+        return false;
     }
     
+    // iterate the files in the file list
     char c;
     String line = "";
     
@@ -291,6 +319,129 @@ void p_syncFiles()
     listFile.close();
     
     Serial.println(F("sync done."));
+    
+    return true;
+}
+
+#pragma mark - Support (image serving)
+
+void p_startServingImages()
+{
+    screenSerial.begin(57600);
+}
+
+void p_checkForImageRequest()
+{
+    Serial.println(F("checking for image req..."));
+    
+    if (screenSerial.available()) {
+        
+        char c = screenSerial.read();
+        
+        // 'A'
+        if (c == 65) {
+            Serial.println("request acknowledged.");
+            p_transmitNextImage();
+        }
+    }
+}
+
+void p_transmitImageNamed(char *name)
+{
+    File entry = SD.open(name);
+    
+    if (!entry) {
+        Serial.println(F("couldn't open file."));
+        return;
+    }
+    
+    uint32_t length = entry.size();
+    
+    // log
+    
+    Serial.print(F("sending: "));
+    Serial.print(entry.name());
+    Serial.print(F(" ("));
+    Serial.print(length, 10);
+    Serial.println(F(")..."));
+    
+    // transmit file size first
+    
+    screenSerial.write((const uint8_t*) &length, 4);
+    
+    // transmit file data next
+    
+    while (entry.available()) {
+        screenSerial.write(entry.read());
+    }
+    
+    entry.close();
+    
+    // log
+    
+    Serial.println(F("transmission done."));
+}
+
+void p_transmitNextImage()
+{
+    if (_imageCount == 0) {
+        Serial.println(F("no images to send."));
+        return;
+    }
+    
+    // build a filename
+    
+    char *str = (char *) calloc(1, kFilePathLen);
+    
+    strcat(str, itoa(_nextImageNumber, 10));
+    strcat(str, ".jpg");
+    
+    // send
+    
+    p_transmitImageNamed(str);
+    
+    // increment
+    
+    _nextImageNumber++;
+    
+    if (_nextImageNumber > (_imageCount - 1)) {
+        _nextImageNumber = 0;
+    }
+}
+
+void p_determineImageCount()
+{
+    _imageCount = 0;
+    
+    // try to open it
+    File listFile = SD.open("filelist.txt");
+    
+    // early exit if we can't open the file list
+    if (!listFile) {
+        Serial.println(F("can't open filelist.txt."));
+        return;
+    }
+    
+    char c;
+    
+    if (listFile.available()) {
+        _imageCount++;
+    }
+    
+    while (listFile.available()) {
+        
+        c = listFile.read();
+        
+        if (c == '\n') {
+            _imageCount++;
+        }
+    }
+    
+    listFile.close();
+    
+    Serial.print(F("image count: "));
+    Serial.print(_imageCount, 10);
+    Serial.println(F(""));
 }
 
 #pragma mark - Setup and main loop
@@ -300,18 +451,22 @@ void setup(void)
     Serial.begin(115200);
     
     p_initSD();
-    p_initWiFi();
-    p_connect();
+    //p_initWiFi();
     
-    p_syncFiles();
-    p_downloadFileNamed("filelist.txt", true);
+    // Sync
+    //p_connect();
+    //p_syncFiles();
+    //p_disconnect();
     
-    p_disconnect();
+    // Serve up files
+    p_determineImageCount();
+    p_startServingImages();
 }
 
 void loop(void)
 {
-    delay(4000);
-    Serial.println("looping...");
+    p_checkForImageRequest();
+    
+    delay(2000);
 }
 

@@ -5,6 +5,10 @@
       location = "container:"
       name = "Sources">
       <FileRef
+         location = "group:viewer/viewer.ino"
+         assignedFileDataType = "public.objective-c-plus-plus-source">
+      </FileRef>
+      <FileRef
          location = "group:photostreamsyncer/photostreamsyncer.ino"
          assignedFileDataType = "public.objective-c-plus-plus-source">
       </FileRef>
@@ -16,6 +20,9 @@
    <Group
       location = "container:"
       name = "Libraries">
+      <FileRef
+         location = "group:../../Arduino/libraries/arLCDLib/ezLCDLib.h">
+      </FileRef>
       <FileRef
          location = "group:../../../../../Applications/Arduino.app/Contents/Resources/Java/libraries/SD/src/SD.h">
       </FileRef>
